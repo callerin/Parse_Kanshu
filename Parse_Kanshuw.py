@@ -2,10 +2,14 @@
 # Created by calle on 2021/6/13 10:55
 # Copyright (c) 2021 calle. All rights reserved.
 
-import requests
-import bs4
-import urllib
+
 import logging
+import time
+import urllib
+from concurrent.futures import ThreadPoolExecutor
+
+import bs4
+import requests
 
 # logging.disable(logging.INFO)
 logging.disable(logging.DEBUG)
@@ -44,7 +48,8 @@ def get_page_url(url):
 
 
 def get_page_content(url):
-	if url ==None:
+	url = url['href']
+	if url == None:
 		return ''
 	else:
 		url = 'http://' + url
@@ -65,21 +70,27 @@ def save_text():
 if __name__ == '__main__':
 
 	# main_page = "http://www.kanshuw.com/23/23953/"  # 大圣传
-	main_page = "https://www.23hh.com/book/3/3901/"
+	main_page = "https://www.23hh.com/book/6/3901/"
 	chapter_page_list, name = get_page_url(main_page)
+	max_workers = 20
+	executor = ThreadPoolExecutor(max_workers)
+	# all_task = [executor.submit(get_page_content, (url)) for url in chapter_page_list]
 
+	count = 0
+	begin = time.time()
 	with open(name + '.txt', 'w', encoding='utf-8') as file:
 
-		for url in chapter_page_list:
-			title = url['title'] + '\n\n'
-
-			content = get_page_content(url['href'])
-			text = title + content
-
+		for data in executor.map(get_page_content, chapter_page_list):
+			title = chapter_page_list[count]['title']
+			text = title + data
+			count += 1
 			try:
 				file.write(text)
-				logging.info(f'write {url["title"]}')
+				logging.info(f'write {title}')
 			except Exception as e:
 				logging.info(f'error {e}')
 
+	stop = time.time()
+
+	print(f'time {stop - begin}')
 	pass
