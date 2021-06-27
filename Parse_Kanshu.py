@@ -6,10 +6,10 @@
 import logging
 import time
 import urllib
-from concurrent.futures import ThreadPoolExecutor
-
 import bs4
 import requests
+
+from concurrent.futures import ThreadPoolExecutor
 
 # logging.disable(logging.INFO)
 logging.disable(logging.DEBUG)
@@ -22,6 +22,7 @@ def get_page_url(url):
 	url_netloc = urllib.parse.urlparse(main_page).netloc
 	res = requests.get(url)
 	res.raise_for_status()
+	res.encoding = "utf-8"
 	page_soup = bs4.BeautifulSoup(res.text, features='lxml')
 	div_content = page_soup.select('div [id="list"]')
 	div_list = div_content[0].contents[1].contents
@@ -31,15 +32,18 @@ def get_page_url(url):
 
 	for content in div_list:
 		div_content = {}
-		if len(content.contents) > 1:
-			href = content.contents[1].attrs['href']
-			div_content['href'] = url_netloc + href
-			div_content['title'] = content.contents[1].text
-			logging.debug(f'章节： {content.contents[1].text}')
-		else:
-			div_content['href'] = None
-			div_content['title'] = content.text
-			logging.debug(f'卷  ： {content.text}')
+		try:
+			if len(content.contents) > 1:
+				href = content.contents[1].attrs['href']
+				div_content['href'] = url_netloc + href
+				div_content['title'] = content.contents[1].text
+				logging.debug(f'章节： {content.contents[1].text}')
+			else:
+				div_content['href'] = None
+				div_content['title'] = content.text
+				logging.debug(f'卷  ： {content.text}')
+		except Exception as e:
+			logging.error(f'get url error {e}')
 
 		result.append(div_content)
 
@@ -49,7 +53,7 @@ def get_page_url(url):
 
 def get_page_content(url):
 	url = url['href']
-	if url == None:
+	if not url:
 		return ''
 	else:
 		url = 'http://' + url
@@ -59,6 +63,7 @@ def get_page_content(url):
 	page_soup = bs4.BeautifulSoup(res.text, features='lxml')
 	div_content = page_soup.select('div [id="content"]')[0].text
 	div_content = div_content.replace('　　', '\n')
+	# div_content = div_content.replace('\r\n\t\t\t\t\n', '\n') + '\n'
 
 	return div_content
 
@@ -69,8 +74,9 @@ def save_text():
 
 if __name__ == '__main__':
 
-	# main_page = "http://www.kanshuw.com/23/23953/"  # 大圣传
-	main_page = "https://www.23hh.com/book/6/3901/"
+	# main_page = "http://www.kanshuw.com/23/23953/"
+	main_page = "https://www.23hh.com/book/6/6899/"
+	# main_page = 'https://www.tianxiabachang.cn/42_42909/'
 	chapter_page_list, name = get_page_url(main_page)
 	max_workers = 20
 	executor = ThreadPoolExecutor(max_workers)
@@ -79,7 +85,6 @@ if __name__ == '__main__':
 	count = 0
 	begin = time.time()
 	with open(name + '.txt', 'w', encoding='utf-8') as file:
-
 		for data in executor.map(get_page_content, chapter_page_list):
 			title = chapter_page_list[count]['title']
 			text = title + data
@@ -88,9 +93,8 @@ if __name__ == '__main__':
 				file.write(text)
 				logging.info(f'write {title}')
 			except Exception as e:
-				logging.info(f'error {e}')
+				logging.error(f'write file error:{e}')
 
 	stop = time.time()
 
-	print(f'time {stop - begin}')
-	pass
+	logging.info(f'time {stop - begin}')
